@@ -29,11 +29,44 @@ typename pcl::PointCloud<PointT>::Ptr ProcessPointClouds<PointT>::FilterCloud(ty
 
     // TODO:: Fill in the function to do voxel grid point reduction and region based filtering
 
+    typename pcl::PointCloud<PointT>::Ptr cloudFiltered (new pcl::PointCloud<PointT>);
+    pcl::VoxelGrid<PointT> sor;
+    sor.setInputCloud(cloud);
+	sor.setLeafSize (filterRes, filterRes, filterRes);    
+	sor.filter (*cloudFiltered);
+
+
+	typename pcl::PointCloud<PointT>::Ptr cloudRegion(new pcl::PointCloud<PointT>);
+
+	pcl::CropBox<PointT> roi(true);
+	roi.setMin(minPoint);
+	roi.setMax(maxPoint);
+	roi.setInputCloud(cloudFiltered);
+	roi.filter(*cloudRegion);
+
+	std::vector<int> indices;
+
+	pcl::CropBox<PointT> roof(true);
+	roof.setMin(Eigen::Vector4f(-1.5, -1.7, -1, 1));
+	roof.setMax(Eigen::Vector4f(2.6, 1.7, -0.4, 1));
+	roof.setInputCloud(cloudRegion);
+	roof.filter(indices);
+
+	
+	typename pcl::PointCloud<PointT>::Ptr cloudRoofRemoved(new pcl::PointCloud<PointT>);
+	// std::cout << "cloudRegion size before roof" << cloudRegion->size() << std::endl;
+
+	for(int i=0; i<(int)cloudRegion->size(); i++) {
+		if(find(indices.begin(),indices.end(), i) == indices.end()) cloudRoofRemoved->points.push_back(cloudRegion->points[i]);
+	}
+
+	// std::cout << "cloudRegion size after roof" << cloudRoofRemoved->size() << std::endl;
+
     auto endTime = std::chrono::steady_clock::now();
     auto elapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
     std::cout << "filtering took " << elapsedTime.count() << " milliseconds" << std::endl;
 
-    return cloud;
+    return cloudRoofRemoved;
 
 }
 
@@ -69,62 +102,66 @@ std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT
 {
     // Time segmentation process
     auto startTime = std::chrono::steady_clock::now();
-	pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients ());
-  	pcl::PointIndices::Ptr inliers (new pcl::PointIndices ());
-    // TODO:: Fill in this function to find inliers for the cloud.
-	pcl::SACSegmentation<PointT> seg;
-	seg.setOptimizeCoefficients (true);
-	seg.setModelType (pcl::SACMODEL_PLANE);
-	seg.setMethodType (pcl::SAC_RANSAC);
-  	seg.setMaxIterations (maxIterations);
-  	seg.setDistanceThreshold (distanceThreshold);
-
-
-	    // Segment the largest planar component from the remaining cloud
-    seg.setInputCloud (cloud);
-    seg.segment (*inliers, *coefficients);
-
-
- //  	std::unordered_set<int> inliersResult;
-	// srand(time(NULL));
-
-	// // For max iterations 
-	// while(maxIterations--) {
-
-	// // Randomly sample subset and fit line
-	// int randIndex1 = rand() % cloud->size();
-	// int randIndex2 = rand() % cloud->size();
-	// int randIndex3 = rand() % cloud->size();
-
-	// auto x1 = cloud->points[randIndex1].x;
-	// auto y1 = cloud->points[randIndex1].y;
-	// auto z1 = cloud->points[randIndex1].z;
-
-	// auto x2 = cloud->points[randIndex2].x;
-	// auto y2 = cloud->points[randIndex2].y;
-	// auto z2 = cloud->points[randIndex2].z;
+    pcl::PointIndices::Ptr inliers (new pcl::PointIndices ());
 	
-	// auto x3 = cloud->points[randIndex3].x;
-	// auto y3 = cloud->points[randIndex3].y;
-	// auto z3 = cloud->points[randIndex3].z;
+    // TODO:: Fill in this function to find inliers for the cloud.
+	// pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients ());
+ 
+	// pcl::SACSegmentation<PointT> seg;
+	// seg.setOptimizeCoefficients (true);
+	// seg.setModelType (pcl::SACMODEL_PLANE);
+	// seg.setMethodType (pcl::SAC_RANSAC);
+ //  	seg.setMaxIterations (maxIterations);
+ //  	seg.setDistanceThreshold (distanceThreshold);
 
-	// float A = (y2-y1)*(z3-z1) - (z2-z1)*(y3-y1);
-	// float B = (z2-z1)*(x3-x1) - (x2-x1)*(z3-z1);
-	// float C = (x2-x1)*(y3-y1) - (y2-y1)*(x3-x1);
-	// float D = -(A*x1 + B*y1 + C*z1);
-	// // Measure distance between every point and fitted line
-	// // // If distance is smaller than threshold count it as inlier
-	// std::unordered_set<int> tempResult;
-	// for(int index=0; index<(int)cloud->size(); index++) {
-	// 	float d = abs(A * cloud->points[index].x + B*cloud->points[index].y + C*cloud->points[index].z + D) / sqrt(A*A + B*B + C*C) ;
-	// 	if (d <= distanceThreshold) tempResult.insert(index);
-	// }
-	// if(tempResult.size() > inliersResult.size()) inliersResult = tempResult;
-	// // // Return indicies of inliers from fitted line with most inliers
-	// }
 
-	// inliers->indices.insert(inliers->indices.end(), inliersResult.begin(), inliersResult.end());
+	//     // Segment the largest planar component from the remaining cloud
+ //    seg.setInputCloud (cloud);
+ //    seg.segment (*inliers, *coefficients);
 
+
+  	std::unordered_set<int> inliersResult;
+	srand(time(NULL));
+
+	// For max iterations 
+	while(maxIterations--) {
+
+	// Randomly sample subset and fit line
+		int randIndex1 = rand() % cloud->size();
+		int randIndex2 = rand() % cloud->size();
+		int randIndex3 = rand() % cloud->size();
+
+		auto x1 = cloud->points[randIndex1].x;
+		auto y1 = cloud->points[randIndex1].y;
+		auto z1 = cloud->points[randIndex1].z;
+
+		auto x2 = cloud->points[randIndex2].x;
+		auto y2 = cloud->points[randIndex2].y;
+		auto z2 = cloud->points[randIndex2].z;
+		
+		auto x3 = cloud->points[randIndex3].x;
+		auto y3 = cloud->points[randIndex3].y;
+		auto z3 = cloud->points[randIndex3].z;
+
+		float A = (y2-y1)*(z3-z1) - (z2-z1)*(y3-y1);
+		float B = (z2-z1)*(x3-x1) - (x2-x1)*(z3-z1);
+		float C = (x2-x1)*(y3-y1) - (y2-y1)*(x3-x1);
+		float D = -(A*x1 + B*y1 + C*z1);
+		// Measure distance between every point and fitted line
+		// // If distance is smaller than threshold count it as inlier
+		std::unordered_set<int> tempResult;
+		for(int index=0; index<(int)cloud->size(); index++) {
+			float d = abs(A * cloud->points[index].x + B*cloud->points[index].y + C*cloud->points[index].z + D) / sqrt(A*A + B*B + C*C) ;
+			if (d <= distanceThreshold) tempResult.insert(index);
+		}
+		if(tempResult.size() > inliersResult.size()) inliersResult = tempResult;
+	// // Return indicies of inliers from fitted line with most inliers
+	}
+
+	inliers->indices.insert(inliers->indices.end(), inliersResult.begin(), inliersResult.end());
+
+	// std::cout<< inliers->indices.size () << "  " << inliersResult.size() << std::endl;
+	// std::cout<< inliers->indices.size () << std::endl;
     if (inliers->indices.size () == 0)
     {
       std::cerr << "Could not estimate a planar model for the given dataset." << std::endl;
